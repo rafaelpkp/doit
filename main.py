@@ -225,7 +225,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     token = get_user_token(telegram_id)
     
     if not token:
-        login_url = f"http://localhost:8080/login?telegram_id={telegram_id}"
+        base_url = os.environ.get('BASE_URL', 'https://ai-assistant-3740.onrender.com').rstrip('/')
+        login_url = f"{base_url}/login?telegram_id={telegram_id}"
         
         # We'll ditch the <a> tag for now so Telegram doesn't block it
         reply_text = (
