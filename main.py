@@ -601,30 +601,41 @@ if bot_token:
     base_url = os.environ.get('BASE_URL', 'https://ai-assistant-3740.onrender.com').rstrip('/')
     webhook_url = f"{base_url}/telegram-webhook"
     
-    try:
-        asyncio.run(application.bot.set_webhook(url=webhook_url))
-        print(f"Webhook set to {webhook_url}")
-    except Exception as e:
-        print(f"Failed to set webhook: {e}")
+    # 1. Create a permanent, dedicated event loop for the Telegram bot
+    telegram_loop = asyncio.new_event_loop()
+    
+    def run_telegram_loop(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+        
+    # 2. Start this loop in a background thread so it doesn't block Flask
+    threading.Thread(target=run_telegram_loop, args=(telegram_loop,), daemon=True).start()
+    
+    # 3. Initialize the bot safely inside its own dedicated loop
+    async def setup_bot():
+        await application.bot.set_webhook(url=webhook_url)
+        await application.initialize()
+        await application.start()
+        print(f"Webhook securely set to {webhook_url} and bot started.")
+        
+    asyncio.run_coroutine_threadsafe(setup_bot(), telegram_loop)
+
 else:
     application = None
     print("Warning: TELEGRAM_TOKEN not found in .env file.")
 
-bot_initialized = False
-
+# 4. Make the Flask route synchronous again and pass the baton to the background loop
 @app.route('/telegram-webhook', methods=['POST'])
-async def telegram_webhook():
-    global bot_initialized
+def telegram_webhook():
     if application:
         try:
-            if not bot_initialized:
-                await application.initialize()
-                bot_initialized = True
-                
-            update = Update.de_json(flask.request.get_json(force=True), application.bot)
-            await application.process_update(update)
+            update_dict = flask.request.get_json(force=True)
+            update = Update.de_json(update_dict, application.bot)
+            # Hand the message off to the background bot thread safely
+            asyncio.run_coroutine_threadsafe(application.process_update(update), telegram_loop)
         except Exception as e:
             print(f"Error processing update: {e}")
+    # Return 'ok' immediately so Telegram knows we got it
     return 'ok'
 
 if __name__ == '__main__':
