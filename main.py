@@ -91,6 +91,14 @@ def save_user_token(telegram_id, refresh_token, timezone="UTC"):
 def index():
     return 'Welcome! Send /start to the Telegram bot.'
 
+@app.route('/privacy')
+def privacy_policy():
+    return "<h1>Privacy Policy</h1><p>This app accesses your calendar solely to add/delete/edit/read events your events in said calendar. Additionally, we do not store any of your conversations, events modified/created, or any other personal data (aside from your refresh token, and google user id).</p>"
+
+@app.route('/terms')
+def terms_of_service():
+    return "<h1>Terms of Service</h1><p>Usage of this bot is intended for scheduling support. The developers are not responsible for any damages caused by the misuse of this bot. Additionally, the developers are not responsible for any calendar events that are created, modified, or deleted by this bot.</p>"
+
 @app.route('/login')
 def login():
     telegram_id = flask.request.args.get('telegram_id')
