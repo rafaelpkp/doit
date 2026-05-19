@@ -610,33 +610,19 @@ else:
     application = None
     print("Warning: TELEGRAM_TOKEN not found in .env file.")
 
-bot_loop = None
-bot_thread = None
-bot_lock = threading.Lock()
-
-def get_bot_loop():
-    global bot_loop, bot_thread
-    with bot_lock:
-        if bot_loop is None or not bot_loop.is_running():
-            bot_loop = asyncio.new_event_loop()
-            def run_loop(loop):
-                asyncio.set_event_loop(loop)
-                loop.run_forever()
-            bot_thread = threading.Thread(target=run_loop, args=(bot_loop,), daemon=True)
-            bot_thread.start()
-            
-            if application:
-                future_init = asyncio.run_coroutine_threadsafe(application.initialize(), bot_loop)
-                future_init.result()
-    return bot_loop
+bot_initialized = False
 
 @app.route('/telegram-webhook', methods=['POST'])
-def telegram_webhook():
+async def telegram_webhook():
+    global bot_initialized
     if application:
         try:
+            if not bot_initialized:
+                await application.initialize()
+                bot_initialized = True
+                
             update = Update.de_json(flask.request.get_json(force=True), application.bot)
-            loop = get_bot_loop()
-            asyncio.run_coroutine_threadsafe(application.process_update(update), loop).result()
+            await application.process_update(update)
         except Exception as e:
             print(f"Error processing update: {e}")
     return 'ok'
